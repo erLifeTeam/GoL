@@ -10,10 +10,10 @@ start_link({X,Y,StartValues}) ->
 init({X,Y,StartValues}) ->
 	SupFlags = #{strategy => one_for_one, intensity => 1, period => 5},
 	ChildSpecs = [ #{id => list_to_atom("row_sup" ++ integer_to_list(N)),
-			start => {row_sup, start_link, [{X,Y,StartValue}]},
+			start => {row_sup, start_link, [{Y,X,N,StartValue}]},
 			restart => transient,
 			shutdown => infinity,
 			type => supervisor,
-			modules => [row_sup]} || {StartValue,N} <- lists:zip(StartValues, lists:seq(1,Y)) ],
+			modules => [row_sup]} || {StartValue,N} <- lists:zip(StartValues, lists:seq(0,Y)) ],
 	{ok, {SupFlags, ChildSpecs}}.
 	  
