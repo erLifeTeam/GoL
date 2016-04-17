@@ -1,0 +1,15 @@
+{application, gol,
+ [{description, "Erlang Game of Life"},
+  {vsn, "0.0.1"},
+  {registered, [main_indexer] },
+  {mod, {gol, ["input.txt"]}},
+  {modules,
+   [automaton_sup,
+    row_sup,
+    cell,
+    register_sup,
+    register_row_sup,
+    main_indexer,
+    row_indexer
+  ]}
+ ]}.
