@@ -13,12 +13,13 @@
 	   my_neightbours
 	  }).
  
-start_link({MaxX,MaxY,X,Y,StartValue}) ->
-	gen_server:start_link(?MODULE,{MaxX,MaxY,X,Y,StartValue},[]).
+start_link({MaxX,MaxY,X,Y}) ->
+	gen_server:start_link(?MODULE,{MaxX,MaxY,X,Y},[]).
  
-init({MaxX,MaxY,X,Y,StartValue}) ->
-	NewState = #cell_state{value = #{0 => StartValue}, % key - generation, value = value
-			       generation = 0,
+init({MaxX,MaxY,X,Y}) ->
+	{Gen,StartValue} = gen_server:call({global,cache},{get_state,X,Y}),
+	NewState = #cell_state{value = #{Gen => StartValue}, % key - generation, value = value
+			       generation = Gen,
 				xcord = X,
 				ycord = Y,
 				my_neightbours = 
@@ -43,7 +44,7 @@ init({MaxX,MaxY,X,Y,StartValue}) ->
 	        get_neightbours,
 		[StartValue,
 		{	self(),
-			0,
+			Gen,
 			NewState#cell_state.my_neightbours
 		}]),
 	{ok,NewState}.
@@ -58,14 +59,24 @@ handle_call(_Request,_From,State) ->
 	{reply,{error,unknown_request},State}.
 	  
 handle_cast({update_state,NewValue,NewNeightbours},State) ->
+
+	Pred = fun(K,_V) -> %it is used to delete history older than 3 gens
+			       (K - State#cell_state.generation) < 3
+	       end,
+
 	NewState =  State#cell_state{value=maps:put(
 					     State#cell_state.generation+1,
 					     NewValue,
-					     State#cell_state.value
+					     maps:filter(Pred,State#cell_state.value)
 					    ),
 				     generation=State#cell_state.generation+1,
 				     my_neightbours=NewNeightbours},
-	%% do zrobienia, nie wiadomo jakie wiadomosci  gen_server:cast({global,persistor},{save,state}),
+	gen_server:cast({global,cache},{update_state,
+					State#cell_state.xcord,
+					State#cell_state.ycord,
+					State#cell_state.generation+1,
+					NewValue
+				       }),
 	spawn(?MODULE,
 		get_neightbours,
 		[NewValue,
