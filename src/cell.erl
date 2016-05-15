@@ -2,7 +2,7 @@
 -behaviour(gen_server).
 
 -export([start_link/1]).
--export([init/1, handle_call/3, handle_cast/2, terminate/2]).
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, terminate/2]).
 -export([get_neightbours/2]).
 
 -record (cell_state, {
@@ -50,7 +50,8 @@ init({MaxX,MaxY,X,Y}) ->
 	{ok,NewState}.
 
 handle_call({get_state,Generation},_From,State) ->
-	{reply,{ok,maps:get(Generation,State#cell_state.value)},State};
+	Answer = maps:get(Generation,State#cell_state.value,no_value),
+	{reply,{ok,Answer},State};
 
 handle_call(show_state,_From,State) ->
 	{reply,State,State};
@@ -90,52 +91,84 @@ handle_cast({update_state,NewValue,NewNeightbours},State) ->
 handle_cast(_Request,State) ->
 	{noreply,State}.
 
+handle_info(_Request,State) ->
+	{noreply,State}.
+
+code_change(_OldSvn, State, _Extra) ->
+	{ok, State}.
+
 terminate(_Reason,State) ->
 	X = State#cell_state.xcord,
 	Y = State#cell_state.ycord,
 	gen_server:call({global,main_indexer},{unregister_cell,X,Y}),
 	ok.
 
+%%%%%%%%%%%%%%%
+%%%INTERNAL FUNCTIONS
+%%%%%%%%%%%%%%%
+
+
 ask_for_pid(Known,[]) ->
-	Known;
+	lists:flatten(Known);
 
 ask_for_pid(Known,[{X,Y,undefined}|Tail]) ->
-		Entry = case gen_server:call({global,main_indexer},{get_pid,X,Y}) of
-				{ok,PID} -> {X,Y,PID};
-				{error,unregistered} -> {X,Y,undef};
+	{Entry,AddToTail} = case gen_server:call({global,main_indexer},{get_pid,X,Y}) of
+				{ok,PID} -> 
+					    {{X,Y,PID},
+					     []};
+				{error,unregistered} -> 
+					    {[],
+					    {X,Y,undefined}};
 				{error,badkey} -> []
 			end,
-		ask_for_pid([Entry|Known], Tail).
+		NewTail = lists:flatten([AddToTail|Tail]),
+		ask_for_pid([Entry|Known], NewTail).
 
-ask_for_value(_Generation, Result,[]) ->
-	Result;
+ask_for_value(_Generation, {Res1,Res2},[]) ->
+	{lists:flatten(Res1), lists:flatten(Res2)};
 
 ask_for_value(Generation, {Values,List},[{X,Y,PID}|Tail]) ->
 
-	{NewValue,NewEntry} = case gen_server:call(PID,{get_state,Generation}) of
-					  {ok,Value} -> {Value, {X,Y,PID}};
-					  {noproc,_} -> {undef, {X,Y,undef}};
-						%  [_,_,NewPID] = ask_for_pid([],[{X,Y,undefined}]),
-						%  ask_for_value({[],[]}, [X,Y,NewPID]);
-				  	  _ -> {error,unkown}
-				  end,
-	ask_for_value(Generation, { [NewValue|Values], [NewEntry|List]  },Tail).
+	{NewValue,
+	 NewEntry,
+	 AddToTail} =
+	case gen_server:call(PID,{get_state,Generation}) of
+		{ok,no_value} -> 
+			timer:sleep(1),
+			{[],
+			 [],
+			 {X,Y,PID}};
+
+		{ok,Value} -> 
+			{Value,
+			 {X,Y,PID},
+			 []};
+
+		{noproc,_} ->
+			timer:sleep(10),
+			{[],
+			 [],
+			 ask_for_pid([], [{X,Y,undefined}] )};
+		_ -> {[],[],[]}
+	end,
+	NewTail = lists:flatten([AddToTail|Tail]),
+	ask_for_value(Generation, { [NewValue|Values], [NewEntry|List]  },NewTail).
 
 
 get_neightbours(MyValue,{PID,Generation,Neightbours}) ->
-	timer:sleep(2000),
 	Pred1 = fun({_X,_Y,P}) -> P == undefined end,
 	Pred2 = fun({_X,_Y,P}) -> P =/= undefined end,
 	Unknown = lists:filter(Pred1,Neightbours),
-	NewList = [lists:filter(Pred2,Neightbours) | ask_for_pid([],Unknown)],
+	NewList = lists:flatten(
+		    [lists:filter(Pred2,Neightbours) | ask_for_pid([],Unknown)]
+		   ),
 	
-
-	{Values,NewNeightbours} = ask_for_value(Generation, {[],[]}, lists:flatten(NewList)),
+	{Values,NewNeightbours} = ask_for_value(Generation, {[],[]}, NewList),
 
 	Sum = lists:foldl(fun(A,B) -> A+B end,0,Values),
 	NewValue = case {MyValue,Sum} of
-			   {1,Sum} when Sum > 3 or (Sum < 2)-> 0;
-			   {0,Sum} when Sum > 2 -> 1;
+			   {0,Sum} when Sum == 3 -> 1;
+			   {1,Sum} when (Sum > 3) or (Sum < 2)-> 0;
 			   _ -> 0
 		   end,
 
