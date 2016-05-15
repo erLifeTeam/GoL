@@ -7,8 +7,11 @@ start(normal,[File]) ->
 	StartValues = parse_input_file(File),
 	Y = length(StartValues) - 1 ,
 	X = length(lists:last(StartValues)) - 1, %% we start counting from 0 ;x
+	lager:start(),
+	lager:info("Start values: ~p",[StartValues]),
 	register_sup:start_link({X,Y}),
-	automaton_sup:start_link({X,Y,StartValues}).
+	cache:start_link({X,Y,StartValues}),
+	automaton_sup:start_link({X,Y}).
 
 stop(_State) ->
 	ok.
