@@ -17,25 +17,33 @@ start_link({X, Size, Generation, GenPersister}) ->
           gen_server:start_link(?MODULE, {X, Size, Generation, GenPersister}, []).
 
 init({X, Size, Generation, GenPersister}) ->
-  State = {#{}, X, Size, Size, Generation, GenPersister},
-  gen_server:call(GenPersister, {register_row, X}),
+  State = {#{}, X, Size, Generation, GenPersister},
+  gen_server:call(GenPersister, {register_row, X, self()}),
   {ok, State}.
 
-handle_cast({put_value,X, Y, Val, Generation}, {Map, X, Size, 1, Generation, GenPersister}) ->
+handle_cast({put_value,X, Y, Val, Generation}, 
+            {Map, X, 1, Generation, GenPersister}) ->
   NewMap = maps:put(Y, Val, Map),
-  gen_server:call(GenPersister,
-                  {write_line, X,
-                  maps:fold(
-                      fun(K, V, Acc) when is_list(K) -> 10*Acc + V end,
-                      0,
-                      NewMap)}),
-  {stop, normal, {NewMap, X, Size, Size, Generation, GenPersister}};
+
+  error_logger:info_msg("Updated map: ~p~n", [NewMap]),
+  error_logger:info_msg("Call content: ~p, ~p, ~p~n", [write_line, X, maps:values(NewMap)]),
+
+  Reply = gen_server:call(GenPersister,
+                  {write_line, X, maps:values(NewMap)}),
+
+  error_logger:info_msg("State sended ~p ~n", [Reply]),
+
+ {stop, normal, {NewMap, X, 0, Generation, GenPersister}};
+ %%gen_server:stop(self());
 
 handle_cast({put_value,X, Y, Val, Generation},
-            {Map, X, Size, Counter, Generation, GenPersister}) ->
+            {Map, X, Counter, Generation, GenPersister}) ->
   NewMap = maps:put(Y, Val, Map),
+
+  error_logger:info_msg("Updated map: ~p~n", [NewMap]),
+  
   NewCounter = Counter - 1,
-  NewState = {NewMap, X, Size, NewCounter, Generation, GenPersister},
+  NewState = {NewMap, X, NewCounter, Generation, GenPersister},
   {noreply, NewState}.
 
 handle_call(_Request, _From, State) ->

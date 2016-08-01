@@ -29,24 +29,32 @@ handle_call({register_row, X, Pid},
   error_logger:info_msg("Call register_row from ~p .~n", [Pid]),
   {reply, ok, {NewRows, RowCount, SizeY, Generation, Value}};
 
+
+
 handle_call({write_line, X, Content},
               From,
               {Rows, 1, SizeY, Generation, Value}) ->
+  error_logger:info_msg("Received row state (last row) ~p ~p ~n", [X, Content]),
+
   NewValue = maps:put(X, Content, Value),
   gen_server:reply(From,  ok),
+
   error_logger:info_msg("Last call of register write. ~n Save all to the file. ~n"),
   error_logger:info_msg("Content of map: ~n ~p ~n", [NewValue]),
   %%spawn_link(?MODULE, prepare_to_save, [Generation, NewValue]),
+  
   prepare_to_save(Generation, NewValue),
   error_logger:info_msg("Finish the server."),
-  %%gen_server:stop(normal, {Rows, 0, SizeY, Generation, NewValue});
-  gen_server:stop(self());
+  {stop, normal, {Rows, 0, SizeY, Generation, NewValue}};
+  %%gen_server:stop(self());
 
-handle_call({write_line, X, Content},
-            _From,
+handle_call({write_line, X, Content},From,
             {Rows, RowCount, SizeY, Generation, Value}) ->
+  error_logger:info_msg("Received row state ~p ~p ~n", [X, Content]),
   NewValue = maps:put(X, Content, Value),
   {reply, ok, {Rows, RowCount - 1, SizeY, Generation, NewValue}};
+
+
 
 handle_call(_Request, _From, _State) ->
   {reply, {error, unknown_request}}.
