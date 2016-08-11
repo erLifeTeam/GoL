@@ -12,28 +12,30 @@
   handle_cast/2,
   terminate/2]).
 
+-record(gen_state, {rows_data, rows_count = #{}, size_Y = 0, generation = 0, value = #{}}).
 
 start_link({RowCount, SizeY, Generation}) ->
           gen_server:start_link(?MODULE, {RowCount, SizeY, Generation}, []).
 
 init({RowCount, SizeY, Generation}) ->
-  State = {#{}, RowCount, SizeY, Generation, #{}},
+  State = #gen_state{rows_data = #{}, rows_count = RowCount, size_Y = SizeY, generation = Generation, value = #{}},
   %%%Reply = gen_server:call({global, main_peresister},
   %%%                        {register_generation, Generation}),
   {ok, State}.
 
 handle_call({register_row, X, Pid},
             From,
-            {Rows, RowCount, SizeY, Generation, Value}) ->
-  NewRows = maps:put(X, Pid, Rows),
+            OldState) ->
+  NewRows = maps:put(X, Pid, OldState#gen_state.rows_data),
   error_logger:info_msg("Call register_row from ~p .~n", [Pid]),
-  {reply, ok, {NewRows, RowCount, SizeY, Generation, Value}};
+  {reply, ok, OldState#gen_state{rows_data = NewRows}};
 
 
 
 handle_call({write_line, X, Content},
               From,
-              {Rows, 1, SizeY, Generation, Value}) ->
+              OldState = #gen_state{rows_count = 1, value = Value, generation = Generation}) ->
+              %%{Rows, 1, SizeY, Generation, Value}) ->
   error_logger:info_msg("Received row state (last row) ~p ~p ~n", [X, Content]),
 
   NewValue = maps:put(X, Content, Value),
@@ -41,18 +43,18 @@ handle_call({write_line, X, Content},
 
   error_logger:info_msg("Last call of register write. ~n Save all to the file. ~n"),
   error_logger:info_msg("Content of map: ~n ~p ~n", [NewValue]),
-  %%spawn_link(?MODULE, prepare_to_save, [Generation, NewValue]),
-  
+  %%Pid2 = spawn_link(?MODULE, prepare_to_save, [Generation, NewValue]),
   prepare_to_save(Generation, NewValue),
   error_logger:info_msg("Finish the server."),
-  {stop, normal, {Rows, 0, SizeY, Generation, NewValue}};
+  {stop, normal, OldState#gen_state{rows_count = 0, value = NewValue}};
   %%gen_server:stop(self());
 
 handle_call({write_line, X, Content},From,
-            {Rows, RowCount, SizeY, Generation, Value}) ->
+            %%{Rows, RowCount, SizeY, Generation, Value}
+            OldState = #gen_state{value = Value, rows_count = RowCount}) ->
   error_logger:info_msg("Received row state ~p ~p ~n", [X, Content]),
   NewValue = maps:put(X, Content, Value),
-  {reply, ok, {Rows, RowCount - 1, SizeY, Generation, NewValue}};
+  {reply, ok, OldState#gen_state{rows_count = RowCount -1, value = NewValue}};
 
 
 
