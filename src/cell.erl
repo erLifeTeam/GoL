@@ -36,31 +36,14 @@ init({MaxX, MaxY, X, Y}) ->
                            generation = Gen,
                            xcord = X,
                            ycord = Y,
-                           my_neightbours = 
-                           [{X1, Y1, undefined} || 
-                            X1 <- lists:seq(X-1, X+1),
-                            Y1 <- lists:seq(Y-1, Y+1),
-                            X1 >= 0, X1 =< MaxX,
-                            (X1 =/= X) or (Y1 =/= Y),
-                            Y1 >= 0, Y1 =< MaxY ]
-                           %				my_neightbours= [ {X, Y+1, undefined},
-                           %						  {X+1, Y+1, undefined},
-                           %						  {X+1, Y, undefined},
-                           %						  {X+1, Y-1, undefined},
-                           %						  {X, Y-1, undefined},
-                           %						  {X-1, Y-1, undefined},
-                           %						  {X-1, Y, undefined},
-                           %						  {X-1, Y+1, undefined}]
-                          },
-
+                           my_neightbours = get_neightbours(X, Y, MaxX, MaxY)},
     gen_server:call({global, main_indexer}, {register_cell, X, Y}),
     spawn(?MODULE,
           get_neightbours,
           [StartValue,
-           {	self(),
-                Gen,
-                NewState#cell_state.my_neightbours
-           }]),
+           {self(),
+            Gen,
+            NewState#cell_state.my_neightbours}]),
     {ok, NewState}.
 
 handle_call({get_state, Generation}, _From, State) ->
@@ -168,6 +151,13 @@ ask_for_value(Generation, {Values, List}, [{X, Y, PID}|Tail]) ->
     NewTail = lists:flatten([AddToTail|Tail]),
     ask_for_value(Generation, { [NewValue|Values], [NewEntry|List]  }, NewTail).
 
+get_neightbours(X, Y, MaxX, MaxY) ->
+    [{X1, Y1, undefined} ||
+     X1 <- lists:seq(X-1, X+1),
+     Y1 <- lists:seq(Y-1, Y+1),
+     X1 >= 0, X1 =< MaxX,
+     (X1 =/= X) or (Y1 =/= Y),
+     Y1 >= 0, Y1 =< MaxY ].
 
 get_neightbours(MyValue, {PID, Generation, Neightbours}) ->
     Pred1 = fun({_X, _Y, P}) -> P == undefined end,
