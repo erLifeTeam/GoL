@@ -1,7 +1,7 @@
 -module(cell).
 -behaviour(gen_server).
 
--export([start_link/1]).
+-export([start_link/1, get_state/2, update_state/3]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, terminate/2]).
 -export([get_neightbours/2]).
 
@@ -13,8 +13,22 @@
            my_neightbours
           }).
 
+%%%
+% External functions
+%%%
+
 start_link({MaxX, MaxY, X, Y}) ->
     gen_server:start_link(?MODULE, {MaxX, MaxY, X, Y}, []).
+
+get_state(Pid, Generation) ->
+    gen_server:call(Pid, {get_state, Generation}).
+
+update_state(Pid, NewValue, NewNeightbours) ->
+    gen_server:cast(Pid, {update_state, NewValue, NewNeightbours}).
+
+%%%
+% Callback functions
+%%%
 
 init({MaxX, MaxY, X, Y}) ->
     {Gen, StartValue} = gen_server:call({global, cache}, {get_state, X, Y}),
@@ -132,7 +146,7 @@ ask_for_value(Generation, {Values, List}, [{X, Y, PID}|Tail]) ->
     {NewValue,
      NewEntry,
      AddToTail} =
-    case gen_server:call(PID, {get_state, Generation}) of
+    case cell:get_state(PID, Generation) of
         {ok, no_value} -> 
             timer:sleep(1),
             {[],
@@ -171,6 +185,4 @@ get_neightbours(MyValue, {PID, Generation, Neightbours}) ->
                    {1, Sum} when (Sum > 3) or (Sum < 2)-> 0;
                    _ -> 0
                end,
-
-    gen_server:cast(PID, {update_state, NewValue, NewNeightbours}).
-
+    cell:update_state(PID, NewValue, NewNeightbours).
