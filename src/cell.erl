@@ -6,171 +6,171 @@
 -export([get_neightbours/2]).
 
 -record (cell_state, {
-	   value,
-	   generation,
-	   xcord,
-	   ycord,
-	   my_neightbours
-	  }).
- 
-start_link({MaxX,MaxY,X,Y}) ->
-	gen_server:start_link(?MODULE,{MaxX,MaxY,X,Y},[]).
- 
-init({MaxX,MaxY,X,Y}) ->
-	{Gen,StartValue} = gen_server:call({global,cache},{get_state,X,Y}),
-	NewState = #cell_state{value = #{Gen => StartValue}, % key - generation, value = value
-			       generation = Gen,
-				xcord = X,
-				ycord = Y,
-				my_neightbours = 
-					[{X1,Y1,undefined} || 
-					 X1 <- lists:seq(X-1,X+1),
-					 Y1 <- lists:seq(Y-1,Y+1),
-					 X1 >= 0, X1 =< MaxX,
-					 (X1 =/= X) or (Y1 =/= Y), 
-					 Y1 >= 0, Y1 =< MaxY  ]
-%				my_neightbours= [ {X,Y+1,undefined},
-%						  {X+1,Y+1,undefined},
-%						  {X+1,Y,undefined},
-%						  {X+1,Y-1,undefined},
-%						  {X,Y-1,undefined},
-%						  {X-1,Y-1,undefined},
-%						  {X-1,Y,undefined},
-%						  {X-1,Y+1,undefined}]
-			       },
+           value,
+           generation,
+           xcord,
+           ycord,
+           my_neightbours
+          }).
 
-	gen_server:call({global,main_indexer},{register_cell,X,Y}),
-	spawn(?MODULE,
-	        get_neightbours,
-		[StartValue,
-		{	self(),
-			Gen,
-			NewState#cell_state.my_neightbours
-		}]),
-	{ok,NewState}.
+start_link({MaxX, MaxY, X, Y}) ->
+    gen_server:start_link(?MODULE, {MaxX, MaxY, X, Y}, []).
 
-handle_call({get_state,Generation},_From,State) ->
-	Answer = maps:get(Generation,State#cell_state.value,no_value),
-	{reply,{ok,Answer},State};
+init({MaxX, MaxY, X, Y}) ->
+    {Gen, StartValue} = gen_server:call({global, cache}, {get_state, X, Y}),
+    NewState = #cell_state{value = #{Gen => StartValue}, % key - generation, value = value
+                           generation = Gen,
+                           xcord = X,
+                           ycord = Y,
+                           my_neightbours = 
+                           [{X1, Y1, undefined} || 
+                            X1 <- lists:seq(X-1, X+1),
+                            Y1 <- lists:seq(Y-1, Y+1),
+                            X1 >= 0, X1 =< MaxX,
+                            (X1 =/= X) or (Y1 =/= Y),
+                            Y1 >= 0, Y1 =< MaxY ]
+                           %				my_neightbours= [ {X, Y+1, undefined},
+                           %						  {X+1, Y+1, undefined},
+                           %						  {X+1, Y, undefined},
+                           %						  {X+1, Y-1, undefined},
+                           %						  {X, Y-1, undefined},
+                           %						  {X-1, Y-1, undefined},
+                           %						  {X-1, Y, undefined},
+                           %						  {X-1, Y+1, undefined}]
+                          },
 
-handle_call(show_state,_From,State) ->
-	{reply,State,State};
+    gen_server:call({global, main_indexer}, {register_cell, X, Y}),
+    spawn(?MODULE,
+          get_neightbours,
+          [StartValue,
+           {	self(),
+                Gen,
+                NewState#cell_state.my_neightbours
+           }]),
+    {ok, NewState}.
 
-handle_call(_Request,_From,State) ->
-	{reply,{error,unknown_request},State}.
-	  
-handle_cast({update_state,NewValue,NewNeightbours},State) ->
+handle_call({get_state, Generation}, _From, State) ->
+    Answer = maps:get(Generation, State#cell_state.value, no_value),
+    {reply, {ok, Answer}, State};
 
-	Pred = fun(K,_V) -> %it is used to delete history older than 3 gens
-			       (K - State#cell_state.generation) < 3
-	       end,
+handle_call(show_state, _From, State) ->
+    {reply, State, State};
 
-	NewState =  State#cell_state{value=maps:put(
-					     State#cell_state.generation+1,
-					     NewValue,
-					     maps:filter(Pred,State#cell_state.value)
-					    ),
-				     generation=State#cell_state.generation+1,
-				     my_neightbours=NewNeightbours},
-	gen_server:cast({global,cache},{update_state,
-					State#cell_state.xcord,
-					State#cell_state.ycord,
-					State#cell_state.generation+1,
-					NewValue
-				       }),
-	spawn(?MODULE,
-		get_neightbours,
-		[NewValue,
-		{	self(),
-			NewState#cell_state.generation,
-			NewState#cell_state.my_neightbours
-		}]),
-	
-	{noreply,NewState};
+handle_call(_Request, _From, State) ->
+    {reply, {error, unknown_request}, State}.
 
-handle_cast(_Request,State) ->
-	{noreply,State}.
+handle_cast({update_state, NewValue, NewNeightbours}, State) ->
 
-handle_info(_Request,State) ->
-	{noreply,State}.
+    Pred = fun(K, _V) -> %it is used to delete history older than 3 gens
+                   (K - State#cell_state.generation) < 3
+           end,
+
+    NewState =  State#cell_state{value=maps:put(
+                                         State#cell_state.generation+1,
+                                         NewValue,
+                                         maps:filter(Pred, State#cell_state.value)
+                                        ),
+                                 generation=State#cell_state.generation+1,
+                                 my_neightbours=NewNeightbours},
+    gen_server:cast({global, cache}, {update_state,
+                                      State#cell_state.xcord,
+                                      State#cell_state.ycord,
+                                      State#cell_state.generation+1,
+                                      NewValue
+                                     }),
+    spawn(?MODULE,
+          get_neightbours,
+          [NewValue,
+           {	self(),
+                NewState#cell_state.generation,
+                NewState#cell_state.my_neightbours
+           }]),
+
+    {noreply, NewState};
+
+handle_cast(_Request, State) ->
+    {noreply, State}.
+
+handle_info(_Request, State) ->
+    {noreply, State}.
 
 code_change(_OldSvn, State, _Extra) ->
-	{ok, State}.
+    {ok, State}.
 
-terminate(_Reason,State) ->
-	X = State#cell_state.xcord,
-	Y = State#cell_state.ycord,
-	gen_server:call({global,main_indexer},{unregister_cell,X,Y}),
-	ok.
+terminate(_Reason, State) ->
+    X = State#cell_state.xcord,
+    Y = State#cell_state.ycord,
+    gen_server:call({global, main_indexer}, {unregister_cell, X, Y}),
+    ok.
 
 %%%%%%%%%%%%%%%
-%%%INTERNAL FUNCTIONS
+%%% Internal functions
 %%%%%%%%%%%%%%%
 
 
-ask_for_pid(Known,[]) ->
-	lists:flatten(Known);
+ask_for_pid(Known, []) ->
+    lists:flatten(Known);
 
-ask_for_pid(Known,[{X,Y,undefined}|Tail]) ->
-	{Entry,AddToTail} = case gen_server:call({global,main_indexer},{get_pid,X,Y}) of
-				{ok,PID} -> 
-					    {{X,Y,PID},
-					     []};
-				{error,unregistered} -> 
-					    {[],
-					    {X,Y,undefined}};
-				{error,badkey} -> []
-			end,
-		NewTail = lists:flatten([AddToTail|Tail]),
-		ask_for_pid([Entry|Known], NewTail).
+ask_for_pid(Known, [{X, Y, undefined}|Tail]) ->
+    {Entry, AddToTail} = case gen_server:call({global, main_indexer}, {get_pid, X, Y}) of
+                             {ok, PID} -> 
+                                 {{X, Y, PID},
+                                  []};
+                             {error, unregistered} -> 
+                                 {[],
+                                  {X, Y, undefined}};
+                             {error, badkey} -> []
+                         end,
+    NewTail = lists:flatten([AddToTail|Tail]),
+    ask_for_pid([Entry|Known], NewTail).
 
-ask_for_value(_Generation, {Res1,Res2},[]) ->
-	{lists:flatten(Res1), lists:flatten(Res2)};
+ask_for_value(_Generation, {Res1, Res2}, []) ->
+    {lists:flatten(Res1), lists:flatten(Res2)};
 
-ask_for_value(Generation, {Values,List},[{X,Y,PID}|Tail]) ->
+ask_for_value(Generation, {Values, List}, [{X, Y, PID}|Tail]) ->
 
-	{NewValue,
-	 NewEntry,
-	 AddToTail} =
-	case gen_server:call(PID,{get_state,Generation}) of
-		{ok,no_value} -> 
-			timer:sleep(1),
-			{[],
-			 [],
-			 {X,Y,PID}};
+    {NewValue,
+     NewEntry,
+     AddToTail} =
+    case gen_server:call(PID, {get_state, Generation}) of
+        {ok, no_value} -> 
+            timer:sleep(1),
+            {[],
+             [],
+             {X, Y, PID}};
 
-		{ok,Value} -> 
-			{Value,
-			 {X,Y,PID},
-			 []};
+        {ok, Value} -> 
+            {Value,
+             {X, Y, PID},
+             []};
 
-		{noproc,_} ->
-			timer:sleep(10),
-			{[],
-			 [],
-			 ask_for_pid([], [{X,Y,undefined}] )};
-		_ -> {[],[],[]}
-	end,
-	NewTail = lists:flatten([AddToTail|Tail]),
-	ask_for_value(Generation, { [NewValue|Values], [NewEntry|List]  },NewTail).
+        {noproc, _} ->
+            timer:sleep(10),
+            {[],
+             [],
+             ask_for_pid([], [{X, Y, undefined}] )};
+        _ -> {[], [], []}
+    end,
+    NewTail = lists:flatten([AddToTail|Tail]),
+    ask_for_value(Generation, { [NewValue|Values], [NewEntry|List]  }, NewTail).
 
 
-get_neightbours(MyValue,{PID,Generation,Neightbours}) ->
-	Pred1 = fun({_X,_Y,P}) -> P == undefined end,
-	Pred2 = fun({_X,_Y,P}) -> P =/= undefined end,
-	Unknown = lists:filter(Pred1,Neightbours),
-	NewList = lists:flatten(
-		    [lists:filter(Pred2,Neightbours) | ask_for_pid([],Unknown)]
-		   ),
-	
-	{Values,NewNeightbours} = ask_for_value(Generation, {[],[]}, NewList),
+get_neightbours(MyValue, {PID, Generation, Neightbours}) ->
+    Pred1 = fun({_X, _Y, P}) -> P == undefined end,
+    Pred2 = fun({_X, _Y, P}) -> P =/= undefined end,
+    Unknown = lists:filter(Pred1, Neightbours),
+    NewList = lists:flatten(
+                [lists:filter(Pred2, Neightbours) | ask_for_pid([], Unknown)]
+               ),
 
-	Sum = lists:foldl(fun(A,B) -> A+B end,0,Values),
-	NewValue = case {MyValue,Sum} of
-			   {0,Sum} when Sum == 3 -> 1;
-			   {1,Sum} when (Sum > 3) or (Sum < 2)-> 0;
-			   _ -> 0
-		   end,
+    {Values, NewNeightbours} = ask_for_value(Generation, {[], []}, NewList),
 
-	gen_server:cast(PID,{update_state,NewValue,NewNeightbours}).
+    Sum = lists:foldl(fun(A, B) -> A+B end, 0, Values),
+    NewValue = case {MyValue, Sum} of
+                   {0, Sum} when Sum == 3 -> 1;
+                   {1, Sum} when (Sum > 3) or (Sum < 2)-> 0;
+                   _ -> 0
+               end,
+
+    gen_server:cast(PID, {update_state, NewValue, NewNeightbours}).
 

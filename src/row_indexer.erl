@@ -4,50 +4,47 @@
 -export([start_link/1]).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, code_change/3, terminate/2]).
 
-start_link({X,Y}) ->
-	gen_server:start_link(?MODULE,{X,Y},[]).
- 
-init({X,Y}) ->
-	NewState = maps:from_list(
-		     [ {N,unregistered} || N <- lists:seq(0,X) ]
-		    ),
-	gen_server:call({global,main_indexer},{register_row,Y}),
-	{ok,NewState}.
+start_link({X, Y}) ->
+    gen_server:start_link(?MODULE, {X, Y}, []).
 
-handle_call({get_pid,X},_From,State) ->
-	Reply = case maps:get(X,State,{error,badkey}) of
-			{error,_} -> {error,badkey};
-			unregistered -> {error,unregistered};
-			Value -> {ok,Value}
+init({X, Y}) ->
+    NewState = maps:from_list(
+                 [ {N, unregistered} || N <- lists:seq(0, X) ]
+                ),
+    gen_server:call({global, main_indexer}, {register_row, Y}),
+    {ok, NewState}.
 
-		end,
-	{reply,Reply,State};
+handle_call({get_pid, X}, _From, State) ->
+    Reply = case maps:get(X, State, {error, badkey}) of
+                {error, _} -> {error, badkey};
+                unregistered -> {error, unregistered};
+                Value -> {ok, Value}
 
-handle_call({register_cell,CellPid,X},_From,State) ->
-	NewState = maps:update(X,CellPid,State),
-	{reply,{ok,cell_updated},NewState};
+            end,
+    {reply, Reply, State};
 
-handle_call({unregister_cell,X},_From,State) ->
-	NewState = maps:update(X,unregisterd,State),
-	{reply,{ok,cell_unregistered},NewState};
+handle_call({register_cell, CellPid, X}, _From, State) ->
+    NewState = maps:update(X, CellPid, State),
+    {reply, {ok, cell_updated}, NewState};
 
-handle_call(show_state,_From,State) ->
-	{reply,State,State};
+handle_call({unregister_cell, X}, _From, State) ->
+    NewState = maps:update(X, unregisterd, State),
+    {reply, {ok, cell_unregistered}, NewState};
 
-handle_call(_Request,_From,State) ->
-	{reply,{error,unknown_request},State}.
+handle_call(show_state, _From, State) ->
+    {reply, State, State};
 
-handle_cast(_Request,State) ->
-	{noreply,State}.
+handle_call(_Request, _From, State) ->
+    {reply, {error, unknown_request}, State}.
 
-handle_info(_Request,State) ->
-	{noreply,State}.
+handle_cast(_Request, State) ->
+    {noreply, State}.
+
+handle_info(_Request, State) ->
+    {noreply, State}.
 
 code_change(_OldSvn, State, _Extra) ->
-	{ok, State}.
+    {ok, State}.
 
-
-terminate(_Reason,_State) ->
-	ok.
-
-
+terminate(_Reason, _State) ->
+    ok.
