@@ -31,13 +31,13 @@ update_state(Pid, NewValue, NewNeightbours) ->
 %%%
 
 init({MaxX, MaxY, X, Y}) ->
-    {Gen, StartValue} = gen_server:call({global, cache}, {get_state, X, Y}),
+    {Gen, StartValue} = cache:get_state(X, Y),
     NewState = #cell_state{value = #{Gen => StartValue}, % key - generation, value = value
                            generation = Gen,
                            xcord = X,
                            ycord = Y,
                            my_neightbours = get_neightbours(X, Y, MaxX, MaxY)},
-    gen_server:call({global, main_indexer}, {register_cell, X, Y}),
+    register_cell(X, Y),
     spawn(?MODULE,
           get_neightbours,
           [StartValue,
@@ -97,23 +97,29 @@ code_change(_OldSvn, State, _Extra) ->
 terminate(_Reason, State) ->
     X = State#cell_state.xcord,
     Y = State#cell_state.ycord,
-    gen_server:call({global, main_indexer}, {unregister_cell, X, Y}),
+    main_indexer:unregister_cell_pid(X, Y),
     ok.
 
 %%%%%%%%%%%%%%%
 %%% Internal functions
 %%%%%%%%%%%%%%%
 
+register_cell(X, Y) ->
+    main_indexer:register_cell_pid(self(), X, Y).
+
+get_pid(X, Y) ->
+    RowPid = main_indexer:get_row_indexer_pid(Y),
+    row_indexer:get_cell_pid(RowPid, X).
 
 ask_for_pid(Known, []) ->
     lists:flatten(Known);
 
 ask_for_pid(Known, [{X, Y, undefined}|Tail]) ->
-    {Entry, AddToTail} = case gen_server:call({global, main_indexer}, {get_pid, X, Y}) of
-                             {ok, PID} -> 
+    {Entry, AddToTail} = case get_pid(X, Y) of
+                             {ok, PID} ->
                                  {{X, Y, PID},
                                   []};
-                             {error, unregistered} -> 
+                             {error, undef} ->
                                  {[],
                                   {X, Y, undefined}};
                              {error, badkey} -> []
